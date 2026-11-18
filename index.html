@@ -40,6 +40,16 @@ h1,h2,h3{line-height:1.25;margin:0}
 .btn.sm{padding:10px 16px;font-size:14px;width:auto;display:inline-block}
 .row{display:flex;gap:10px}
 .row .btn{flex:1}
+.sharebox{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.sharebox .shead{font-size:11.5px;color:var(--dim);letter-spacing:.08em;margin-bottom:9px;font-family:var(--mono);text-transform:uppercase}
+.sharebox .slink{display:flex;gap:8px;align-items:stretch}
+.sharebox input{flex:1;min-width:0;background:#0b0d0c;border:1px solid var(--line);border-radius:9px;color:var(--ink);font-family:var(--mono);font-size:12px;padding:11px 12px;outline:none;cursor:text}
+.sharebox input:focus{border-color:var(--green)}
+.sharebox .btn{width:auto;flex:0 0 auto;padding:11px 18px;font-size:14px}
+.sharebox .warn{font-size:12.5px;color:var(--amber);line-height:1.75}
+.sharebar{display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;margin:0 0 18px;padding:13px 16px;border-radius:12px;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3)}
+.sharebar .sb-t{font-size:13.5px;color:#c6d0c8;line-height:1.5;flex:1;min-width:150px}
+.sharebar .btn{width:auto;flex:0 0 auto;white-space:nowrap}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
 .tag{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;letter-spacing:.04em}
 .dim{color:var(--dim)}
@@ -937,6 +947,9 @@ function renderResult(){
   const r=compute(),t=T[r.code];if(!t)return;
   const w=wrongs();
   let h='';
+  if(S.shared){
+    h+='<div class="sharebar"><div class="sb-t">👀 你正在查看别人分享的测试结果</div><button class="btn sm" onclick="startQuiz()">我也要测 →</button></div>';
+  }
   const codeStr=r.let.K+r.let.A+r.let.O+(r.bnd.W?'-':r.let.W);
   const codeHtml=r.let.K+r.let.A+r.let.O+(r.bnd.W?'<span class="bd">-</span>':r.let.W);
   h+='<div class="rescard">';
@@ -1012,8 +1025,8 @@ function renderResult(){
 
   h+='<div style="margin-top:22px"><canvas id="cv"></canvas></div>';
   h+='<div class="row" style="margin-top:12px"><button class="btn" onclick="makeCard()">生成分享卡片</button></div>';
+  h+='<div id="sharebox" class="sharebox"></div>';
   h+='<div class="row" style="margin-top:10px">';
-  h+='<button class="btn ghost" onclick="copyLink()">复制链接</button>';
   h+='<button class="btn ghost" onclick="startQuiz()">重测</button>';
   h+='</div>';
   h+='<div class="row" style="margin-top:10px">';
@@ -1024,6 +1037,7 @@ function renderResult(){
   h+='<div class="foot"><b>免责声明：</b>本测试为科普娱乐工具，不构成税务意见或筹划建议。「抽象浓度」为基于作答极端度的娱乐指标，无统计学意义。政策数值依据截至 2026 年现行有效文件（《个人所得税法》2018年第七次修正、国发〔2018〕41号、国发〔2023〕13号、财政部税务总局公告2023年第30/32号、国家税务总局令第57号等），其中免办汇算 12 万/400 元口径与全年一次性奖金单独计税政策均执行至 2027 年 12 月 31 日。具体申报请以国家税务总局及主管税务机关口径为准，咨询热线 <b>12366</b>，反诈专线 <b>96110</b>。<br><br>本页面全程本地计算，未联网、未上传任何数据。</div>';
 
   document.getElementById("rbody").innerHTML=h;
+  renderShareBox();
 }
 function abstTxt(e){
   if(e>=40)return"极端到离谱";if(e>=30)return"非常典型";if(e>=20)return"比较鲜明";
@@ -1297,16 +1311,47 @@ function roundRect(x,a,b,w,h,r){
   x.lineTo(a+w,b+h-r);x.quadraticCurveTo(a+w,b+h,a+w-r,b+h);x.lineTo(a+r,b+h);
   x.quadraticCurveTo(a,b+h,a,b+h-r);x.lineTo(a,b+r);x.quadraticCurveTo(a,b,a+r,b);x.closePath();
 }
-function copyLink(){
+function canShare(){return location.protocol==="http:"||location.protocol==="https:"}
+function shareURL(){
   const r=compute();
-  const base=(location.protocol==="file:")?"":(location.origin+location.pathname);
-  const u=base+"#r="+r.code+"&k="+r.pct.K+"&a="+r.pct.A+"&o="+r.pct.O+"&w="+r.pct.W;
-  const go=()=>{
-    if(navigator.clipboard&&navigator.clipboard.writeText){
-      navigator.clipboard.writeText(u).then(()=>toast(location.protocol==="file:"?"已复制（本地文件链接需部署到网页空间后他人才能打开）":"链接已复制，打开即显示你的结果")).catch(()=>prompt("手动复制：",u));
-    }else prompt("手动复制：",u);
-  };
-  go();
+  const base=canShare()?(location.origin+location.pathname):"";
+  return base+"#r="+r.code+"&k="+r.pct.K+"&a="+r.pct.A+"&o="+r.pct.O+"&w="+r.pct.W;
+}
+function fallbackCopy(u){
+  const ta=document.createElement("textarea");
+  ta.value=u;ta.setAttribute("readonly","");
+  ta.style.cssText="position:fixed;left:-9999px;top:0;opacity:0";
+  document.body.appendChild(ta);ta.select();
+  let ok=false;try{ok=document.execCommand("copy")}catch(e){ok=false}
+  ta.remove();
+  if(ok)toast("链接已复制");else prompt("手动复制：",u);
+}
+function copyText(u,okMsg){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(u).then(()=>toast(okMsg)).catch(()=>fallbackCopy(u));
+  }else fallbackCopy(u);
+}
+function copyLink(){
+  if(!canShare()){
+    toast("当前是本地文件（file://），链接只能在你自己电脑上打开。部署到网页后再分享。");
+    return;
+  }
+  copyText(shareURL(),"链接已复制，打开即显示你的结果");
+}
+function renderShareBox(){
+  const box=document.getElementById("sharebox");if(!box)return;
+  if(!canShare()){
+    box.innerHTML='<div class="shead">分享链接</div>'
+      +'<div class="warn">⚠ 当前以本地文件方式打开（file://），生成的链接换台设备打不开。'
+      +'部署到网页空间（如 Cloudflare Pages）后，这里会给出可直接分享的链接。</div>';
+    return;
+  }
+  const u=shareURL().replace(/&/g,"&amp;").replace(/"/g,"&quot;");
+  box.innerHTML='<div class="shead">分享链接 · 对方打开即看到这个结果</div>'
+    +'<div class="slink"><input id="shareurl" readonly value="'+u+'">'
+    +'<button class="btn" onclick="copyLink()">复制</button></div>';
+  const inp=document.getElementById("shareurl");
+  if(inp)inp.addEventListener("focus",function(){this.select()});
 }
 function toast(m){const d=document.createElement("div");d.className="tip";d.textContent=m;document.body.appendChild(d);setTimeout(()=>{d.style.transition="opacity .3s";d.style.opacity="0";setTimeout(()=>d.remove(),300)},2200)}
 
@@ -2333,7 +2378,7 @@ function boot(){
   if(h&&h.indexOf("#r=")===0){
     const p={};h.slice(1).split("&").forEach(kv=>{const[a,b]=kv.split("=");p[a]=b});
     if(T[p.r]){
-      S={i:Q.length-1,ans:new Array(Q.length).fill(null),done:true};
+      S={i:Q.length-1,ans:new Array(Q.length).fill(null),done:true,shared:true};
       const pct={K:+p.k||50,A:+p.a||50,O:+p.o||50,W:+p.w||50};
       const let_={},bnd={};
       DIMS.forEach(d=>{const m=DIMMETA[d],v=pct[d];
